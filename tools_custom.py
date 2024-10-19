@@ -24,7 +24,7 @@ class StructuredTool(BaseTool):
     """Tool that can operate on any number of inputs."""
 
     description: str = ""
-    args_schema: TypeBaseModel = Field(..., description="The tool schema.")
+    args_schema: TypeBaseModel = Field(..., description="The tool schema.") # type: ignore
     """The input arguments' schema."""
     func: Optional[Callable[..., Any]]
     """The function to run when the tool is called."""
@@ -106,50 +106,7 @@ class StructuredTool(BaseTool):
         error_on_invalid_docstring: bool = False,
         **kwargs: Any,
     ) -> StructuredTool:
-        """Create tool from a given function.
-
-        A classmethod that helps to create a tool from a function.
-
-        Args:
-            func: The function from which to create a tool.
-            coroutine: The async function from which to create a tool.
-            name: The name of the tool. Defaults to the function name.
-            description: The description of the tool.
-                Defaults to the function docstring.
-            return_direct: Whether to return the result directly or as a callback.
-                Defaults to False.
-            args_schema: The schema of the tool's input arguments. Defaults to None.
-            infer_schema: Whether to infer the schema from the function's signature.
-                Defaults to True.
-            response_format: The tool response format. If "content" then the output of
-                the tool is interpreted as the contents of a ToolMessage. If
-                "content_and_artifact" then the output is expected to be a two-tuple
-                corresponding to the (content, artifact) of a ToolMessage.
-                Defaults to "content".
-            parse_docstring: if ``infer_schema`` and ``parse_docstring``, will attempt
-                to parse parameter descriptions from Google Style function docstrings.
-                Defaults to False.
-            error_on_invalid_docstring: if ``parse_docstring`` is provided, configure
-                whether to raise ValueError on invalid Google Style docstrings.
-                Defaults to False.
-            kwargs: Additional arguments to pass to the tool
-
-        Returns:
-            The tool.
-
-        Raises:
-            ValueError: If the function is not provided.
-
-        Examples:
-
-            .. code-block:: python
-
-                def add(a: int, b: int) -> int:
-                    \"\"\"Add two numbers\"\"\"
-                    return a + b
-                tool = StructuredTool.from_function(add)
-                tool.run(1, 2) # 3
-        """
+    
 
         if func is not None:
             source_function = func

@@ -36,16 +36,13 @@ class UserDataManager:
         self.file_name = file_name
         self.create_csv_file()
 
-    
     def create_csv_file(self):
         if not os.path.exists(self.file_name):
             with open(self.file_name, mode="w", newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(["session_id", "user_name", "contact_number", "car_name"])  # Headers
 
-    
     def save_user_data(self, session_id, user_name, contact_number, car_name=None):
-        
         existing_data = self.load_existing_data()
 
         if session_id in existing_data:
@@ -54,15 +51,13 @@ class UserDataManager:
                 current_cars.append(car_name)
             existing_data[session_id]['car_name'] = current_cars
         else:
-            
             existing_data[session_id] = {
                 'user_name': user_name,
                 'contact_number': contact_number,
                 'car_name': [car_name] if car_name else []
             }
-        
-        self.save_to_csv(existing_data)
 
+        self.save_to_csv(existing_data)
 
     def load_existing_data(self):
         existing_data = {}
@@ -70,7 +65,7 @@ class UserDataManager:
             with open(self.file_name, mode="r") as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    car_names = row["car_name"].strip("[]").split(", ")
+                    car_names = row["car_name"].strip("[]").replace("'", "").split(", ")
                     existing_data[row["session_id"]] = {
                         "user_name": row["user_name"],
                         "contact_number": row["contact_number"],
@@ -78,18 +73,20 @@ class UserDataManager:
                     }
         return existing_data
 
-    
     def save_to_csv(self, data):
         with open(self.file_name, mode="w", newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["session_id", "user_name", "contact_number", "car_name"])  # Write header
             for session_id, info in data.items():
+                # Join the car names into a comma-separated string
+                car_names_str = ', '.join(info["car_name"])
                 writer.writerow([
                     session_id, 
                     info["user_name"], 
                     info["contact_number"], 
-                    str(info["car_name"])  
+                    car_names_str  # Write as a clean string
                 ])
+
 
 
 user_data_manager = UserDataManager()
@@ -99,11 +96,11 @@ def generate_session_id():
     return str(uuid.uuid4())
 
 
-session_id = generate_session_id()
+# session_id_2 = generate_session_id()
 
 def general_inquiry(user_name: str, contact_number: str,car_intrested:str):
 
-    user_data_manager.save_user_data(session_id_2, user_name, contact_number,car_intrested)
+    user_data_manager.save_user_data(global_session_id, user_name, contact_number,car_intrested)
     return f"User {user_name} with contact number {contact_number}."
 
 
@@ -122,11 +119,12 @@ llm = ChatOpenAI(
 
 system_message = SystemMessage(
     content=(
-        "You are a Customer Support Assistant Automobile company name as Hasham automobile company. "
+        
+        "You are a Customer Support Assistant Automobile company name as Hasham automobile company."
         "First Ask Customers Name and Contact Details, then check if user give his data otherwise ask him again."
+        "After you get information of name contact and ask car invoke the general_inquiry chain Must."
         "After that ask him which car you like and invoke Vehile_database chain and check if the car is available and if not apologize."
-        "After you get information of name contact and ask car invoke the general inquiry Must."
-        "If user show interset in multiple cars then invoke again general inquiry"       
+        "If user show interset in multiple cars then invoke again general_inquiry chain"       
     )
 )
 
@@ -224,19 +222,20 @@ async def process_user_input(request: Request, name: str = Form(...), contact: s
 
 def generate_session_id():
     return str(uuid.uuid4())
-session_id_2 = generate_session_id()
+# session_id_2 = generate_session_id()
 
 @app.get("/session")
 async def get_session_id():
     return {"session_id": generate_session_id()}
 
+global_session_id = ''
 
 @app.post("/chat/{session_id}")
 async def chat_with_user(session_id: str, request: Request):
-    global session_id_2
+    global global_session_id
+    global_session_id = session_id
     user_input = await request.json()
-    
-    session_id_2 = generate_session_id() 
+    # session_id_2 = generate_session_id() 
     message = user_input.get('message')
 
     
