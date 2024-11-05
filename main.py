@@ -15,7 +15,7 @@ from langchain.callbacks.manager import AsyncCallbackManager
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-
+import json
 
 app = FastAPI()
 
@@ -46,6 +46,7 @@ class UserDataManager:
         existing_data = self.load_existing_data()
 
         if session_id in existing_data:
+            # For writing mulitple interset in the car
             current_cars = existing_data[session_id]['car_name']
             if car_name and car_name not in current_cars:
                 current_cars.append(car_name)
@@ -78,8 +79,65 @@ class UserDataManager:
             writer = csv.writer(file)
             writer.writerow(["session_id", "user_name", "contact_number", "car_name"])  # Write header
             for session_id, info in data.items():
-                # Join the car names into a comma-separated string
+
                 car_names_str = ', '.join(info["car_name"])
+                writer.writerow([
+                    session_id, 
+                    info["user_name"], 
+                    info["contact_number"], 
+                    car_names_str 
+                ])
+
+class UserDataManagerService:
+    def __init__(self, file_name="user_data_service.csv"):
+        self.file_name = file_name
+        self.create_csv_file()
+
+    def create_csv_file(self):
+        if not os.path.exists(self.file_name):
+            with open(self.file_name, mode="w", newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["session_id", "user_name", "contact_number", "service_detail"])  # Headers
+
+    def save_user_data(self, session_id, user_name, contact_number, service_detail=None):
+        existing_data = self.load_existing_data()
+
+        if session_id in existing_data:
+            # For writing mulitple interset in the car
+            current_service = existing_data[session_id]['service_detail']
+            if service_detail and service_detail not in current_service:
+                current_service.append(service_detail)
+            existing_data[session_id]['service_detail'] = current_service
+        else:
+            existing_data[session_id] = {
+                'user_name': user_name,
+                'contact_number': contact_number,
+                'service_detail': [service_detail] if service_detail else []
+            }
+
+        self.save_to_csv(existing_data)
+
+    def load_existing_data(self):
+        existing_data = {}
+        if os.path.exists(self.file_name):
+            with open(self.file_name, mode="r") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    car_names = row["service_detail"].strip("[]").replace("'", "").split(", ")
+                    existing_data[row["session_id"]] = {
+                        "user_name": row["user_name"],
+                        "contact_number": row["contact_number"],
+                        "service_detail": car_names if car_names[0] else []  
+                    }
+        return existing_data
+
+    def save_to_csv(self, data):
+        with open(self.file_name, mode="w", newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["session_id", "user_name", "contact_number", "service_detail"])  # Write header
+            for session_id, info in data.items():
+                # Join the car names into a comma-separated string
+                car_names_str = ', '.join(info["service_detail"])
                 writer.writerow([
                     session_id, 
                     info["user_name"], 
@@ -90,6 +148,7 @@ class UserDataManager:
 
 
 user_data_manager = UserDataManager()
+user_data_manager_service = UserDataManagerService()
 
 
 def generate_session_id():
@@ -99,7 +158,6 @@ def generate_session_id():
 # session_id_2 = generate_session_id()
 
 def general_inquiry(user_name: str, contact_number: str,car_intrested:str):
-
     user_data_manager.save_user_data(global_session_id, user_name, contact_number,car_intrested)
     return f"User {user_name} with contact number {contact_number}."
 
@@ -120,43 +178,65 @@ llm = ChatOpenAI(
 system_message = SystemMessage(
     content=(
         
-        "You are a Customer Support Assistant Automobile company name as Hasham automobile company."
-        "First Ask Customers Name and Contact Details, then check if user give his data otherwise ask him again."
-        "After you get information of name contact and ask car invoke the general_inquiry chain Must."
-        "After that ask him which car you like and invoke Vehile_database chain and check if the car is available and if not apologize."
-        "If user show interset in multiple cars then invoke again general_inquiry chain"       
+        # "You are a Customer Support Assistant Automobile company name as Hasham automobile company. Greet with the company and then ask other query."
+        # "First Ask Customers Name and Contact Details, then check if user give his data otherwise ask him again."
+        # "Always invoke general_inquiry when you get name, contact details, and car name or model."
+        # "After that Invoke Vehicle_database chain and check if the car is available and if not apologize."
+        # "Always invoke again general_inquiry whenever user mention again about any other car. "      
+        """You are a Customer Support Assistant for Hashim Automobile Company. Start by greeting the customer with the company's name and then proceed to ask about their query.
+
+        First, ask for the customer's name and contact details. If the customer does not provide this information, kindly ask again.
+
+        Once you have the name, contact details, and the car model or brand or service the customer is interested in, invoke the general_inquiry or service_based_query process.
+
+
+        If user show interset in Purchasing car Invoke the Vehicle_database process to check if the car is available. If it is not, apologize to the customer.
+
+        When you get json in answer from the vehicle_database make it generalized to feel like human answer.
+
+        Whenever the customer mentions another car, always invoke the general_inquiry process again."""
+                
     )
 )
-
+def Servicedetailfunction(user_name: str, contact_number: str,service:str):
+    user_data_manager_service.save_user_data(global_session_id, user_name, contact_number,service)
+    return f"User {user_name} with contact number {contact_number}."
 
 def vehicle_database(car_name:str):
-    car_data = '''[
-        {
-            "make": "Flibber",
-            "model": "ZX99-Panda",
-            "engine_capacity": "812cc",
-            "year": "20XX",
-            "color": "Blurple",
-            "price": "$12,34O.99",
-            "transmission": "FlimsyShift-4",
-            "mileage": "One hundred thousand km"
-        },
-        {
-            "make": "Yantro",
-            "model": "Falcon-XT12",
-            "engine_capacity": "1500qwe",
-            "year": "201X",
-            "color": "Sunset Rainbow",
-            "price": "12O,999 Yen",
-            "transmission": "Auto-ish",
-            "mileage": "9999999km"
-        }
-    ]'''
-    return car_data
+    # car_data = '''[
+    #     {
+    #         "make": "Flibber",
+    #         "model": "ZX99-Panda",
+    #         "engine_capacity": "812cc",
+    #         "year": "20XX",
+    #         "color": "Blurple",
+    #         "price": "$12,34O.99",
+    #         "transmission": "FlimsyShift-4",
+    #         "mileage": "One hundred thousand km"
+    #     },
+    #     {
+    #         "make": "Yantro",
+    #         "model": "Falcon-XT12",
+    #         "engine_capacity": "1500qwe",
+    #         "year": "201X",
+    #         "color": "Sunset Rainbow",
+    #         "price": "12O,999 Yen",
+    #         "transmission": "Auto-ish",
+    #         "mileage": "9999999km"
+    #     }
+    # ]'''
+    # return car_data
+    file_path = "car_Data.json"
+    with open(file_path, 'r') as file:
+        data = json.load(file)
     # Process the request object to extract the ca r name
-    for car in car_data:
-        if car_name.lower() in car["make"].lower() or request.car_name.lower() in car["model"].lower():
+    car_list = data.get("Sheet1", [])
+    
+    # Process the request to extract the car name
+    for car in car_list:
+        if car_name.lower() in car["make"].lower() or car_name.lower() in car["model"].lower():
             return car
+    
     return {"error": "Car not found, apologize to the customer."}
 
 
@@ -166,21 +246,30 @@ class GeneralInquiryRequest(BaseModel):
     car_intrested: str = Field(..., description="Car model in which user is intersted.")
 
 
+class ServiceDetail(BaseModel):
+    user_name: str = Field(..., description="The name of the customer.")
+    contact_number: str = Field(..., description="The contact number of the customer.")
+    service: str = Field(..., description="The service customer want i.g changing oil and any service related to car")
 
 
 tools = [
     StructuredTool.from_function(
         name="general_inquiry",
         func=general_inquiry,
-        description="Invoke this tool when user provides their name and number",
+        description="Invoke this tool when user provides their name and number.",
         args_schema=GeneralInquiryRequest,  
     ),
     StructuredTool.from_function(
         name="vehicle_database",
         func=vehicle_database,
         description="Invoke this tool when you need data about a vehicle by name",
-        args_schema=VehicleRequest,  
-        return_direct=False
+        args_schema=VehicleRequest,
+    ),
+    StructuredTool.from_function(
+        name="service_based_query",
+        func=Servicedetailfunction,
+        description="Invoke this tool when you user give information about which service he want.",
+        args_schema=ServiceDetail,
     )
 ]
 
@@ -211,12 +300,12 @@ agent_executor = AgentExecutor(
 async def get_home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.post("/process")
-async def process_user_input(request: Request, name: str = Form(...), contact: str = Form(...), car_name: str = Form(...)):
-    session_id = generate_session_id()
-    user_data_manager.save_user_data(session_id, name, contact, car_name)
-    response = await agent_executor.ainvoke({"input": f"User: {name}, Contact: {contact}, Car: {car_name}"})
-    return {"response": response["output"]}
+# @app.post("/process")
+# async def process_user_input(request: Request, name: str = Form(...), contact: str = Form(...), car_name: str = Form(...)):
+#     session_id = generate_session_id()
+#     user_data_manager.save_user_data(session_id, name, contact, car_name)
+#     response = await agent_executor.ainvoke({"input": f"User: {name}, Contact: {contact}, Car: {car_name}"})
+#     return {"response": response["output"]}
 
 
 

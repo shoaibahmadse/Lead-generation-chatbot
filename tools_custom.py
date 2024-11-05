@@ -21,15 +21,15 @@ from langchain_core.utils.pydantic import TypeBaseModel
 
 
 class StructuredTool(BaseTool):
-    """Tool that can operate on any number of inputs."""
+
 
     description: str = ""
     args_schema: TypeBaseModel = Field(..., description="The tool schema.") # type: ignore
-    """The input arguments' schema."""
+
     func: Optional[Callable[..., Any]]
-    """The function to run when the tool is called."""
+
     coroutine: Optional[Callable[..., Awaitable[Any]]] = None
-    """The asynchronous version of the function."""
+
 
     # --- Runnable ---
 
@@ -41,7 +41,7 @@ class StructuredTool(BaseTool):
         **kwargs: Any,
     ) -> Any:
         if not self.coroutine:
-            # If the tool does not implement async, fall back to default implementation
+
             return await run_in_executor(config, self.invoke, input, config, **kwargs)
 
         return await super().ainvoke(input, config, **kwargs)
@@ -50,7 +50,7 @@ class StructuredTool(BaseTool):
 
     @property
     def args(self) -> dict:
-        """The tool's input arguments."""
+        
         return self.args_schema.schema()["properties"]
 
     def _run(
@@ -84,8 +84,7 @@ class StructuredTool(BaseTool):
                 kwargs[config_param] = config
             return await self.coroutine(*args, **kwargs)
 
-        # NOTE: this code is unreachable since _arun is only called if coroutine is not
-        # None.
+        
         return await super()._arun(
             *args, config=config, run_manager=run_manager, **kwargs
         )
@@ -116,7 +115,7 @@ class StructuredTool(BaseTool):
             raise ValueError("Function and/or coroutine must be provided")
         name = name or source_function.__name__
         if args_schema is None and infer_schema:
-            # schema name is appended within function
+            
             args_schema = create_schema_from_function(
                 name,
                 source_function,
@@ -134,11 +133,10 @@ class StructuredTool(BaseTool):
                 "Function must have a docstring if description not provided."
             )
         if description is None:
-            # Only apply if using the function's docstring
+            
             description_ = textwrap.dedent(description_).strip()
 
-        # Description example:
-        # search_api(query: str) - Searches the API for the query.
+        
         description_ = f"{description_.strip()}"
         return cls(
             name=name,
@@ -156,5 +154,5 @@ def _filter_schema_args(func: Callable) -> List[str]:
     filter_args = list(FILTERED_ARGS)
     if config_param := _get_runnable_config_param(func):
         filter_args.append(config_param)
-    # filter_args.extend(_get_non_model_params(type_hints))
+    
     return filter_args
